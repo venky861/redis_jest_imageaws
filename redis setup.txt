@@ -1,0 +1,91 @@
+cache.js in services folder
+
+const mongoose = require ('mongoose')
+cont redis = require ('redis')
+const redisUrl = 'redis://127.0.0.6379'
+const client = redis.createClient(redisUrl)
+client.hget = util.promisify(client.hget)
+const exec = mongoose.Query.prototype.exec
+
+
+mongoose.Query.prototype.cache = function(options={}){
+
+this.useCache=true
+this.hashKey = JSON.stringify(options.key|| '')
+return this
+}
+
+mongoose.Query.prototype.exec = async function(){
+
+if(!this.useCache){
+return exec.apply(this,arguments)
+}
+
+const key = JSON.stringify(Object.assign({},this.getQuery() , {collection:this.mongooseCollection.name}))
+
+const cachedValue = await client.hget(this.hashKey, key)
+
+if(cachedValue){
+// console.log(cachedValue) // JSON.parse convert redis value in to java script object, but javascript object cannot be send to web bec it should be a model .. 
+// use Array.isArray() to check whether the doc is array or object based on that convert the result to model using new this.model(doc)
+//const doc = new this.model(JSON.parse(cachedValue))
+
+return Array.isArray(doc) ? ( doc.map((data)=> new this.model(data))) : (new this.model(doc))
+
+ 
+}
+
+
+//console.log('about to run a query')
+//console.log(this.getQuery())
+//console.log(this.mongooseCollection.name)
+
+const result = await exec.apply(this,arguments)
+client.hset(this.hashKey,key , JSON.stringify(result) , 'EX' , 10)
+
+return result
+}
+
+module.exports = {
+
+clearHash(hashKey){
+client.del(JSON.stringify(hashkey))
+}
+
+------------------------------------------------
+middleware
+
+const {clearHash} = require ('./cache')
+
+module.exports = async (req,res,next) =>{
+await next()
+
+clearHash(req.user.id)
+}
+
+}
+
+
+------------------------------------------------
+install puppeteer
+create a file with extension .test.js
+
+
+test('test name', ()=>{
+// logic
+// assertion .. expect(3).equalTo(1+2)
+})
+
+-----------------------------------------------------------------------------------------------------
+
+set venky rami
+get venky
+hset friends venky rami
+hset friends sugu mohan // store in hash cluster , key is friends , and cluster are venky and sugu
+hget friends venky , hget friends sugu
+set subha siva EX  5 // value expires after 5 secs and give null after that
+can store a object as a value using JSON.stringy => set venky JSON.stringify({name:'venky' , friends:'rami'})
+del venky // delete the key
+
+
+

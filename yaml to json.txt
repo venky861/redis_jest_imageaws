@@ -1,0 +1,118 @@
+YAML to json sample code below:-
+
+name: 'venky'
+age: 12
+schools:
+ - Jaya
+ - Bharathi
+ - veltech
+
+colleges: 
+ mech: 'venky'
+ eee: 'sowmy'
+ bio: 'rami'
+
+-------------------------------------------------------------------------
+
+keys.js
+--------
+
+if(process.env.NODE_ENV === 'production'){
+	module.exports = require ('./prod') 
+}else if(process.env.NODE_ENV === 'ci'){
+        module.exports = require ('./ci') 
+}else{
+        module.exports = require ('./dev') 
+}
+
+package.json => "build":
+      "NPM_CONFIG_PRODUCTION=false npm install --prefix client && npm run build --prefix client",
+-----------------------------------
+file name should .travis.yml
+
+language: node_js
+node_js:
+ - "8"
+dist: trusty
+services:
+ - mongodb
+ - redis-server
+env:
+ - NODE_ENV= ci
+ - PORT=3000 
+cache:
+ directories:
+   - node_modules
+   - client/node_modules
+install:
+ - npm install
+ - npm run build
+script:
+ - nohup npm run start &
+ - sleep 3
+ - npm run test
+
+// in cs.js --> key
+u need to setup mongodb default ip and redis default ip
+if(process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'ci'){
+
+express.static('client/build')
+
+}
+// await puppeteer.launch({headless:true , args:['--no--sandbox']})
+header.test.js and blog.test.js => http://localhost:3000
+this.page.goto(http://localhost:3000)
+------------------------------------------------------------------------------------------------------
+In AWS , first create a s3 bucket , then go to IAM console and create a access restriction 
+In policies , u need to mention few details , and map it to user with the policy name .. then u will get key and secret
+npm i aws-sdk --save
+In key folder , create a key for secret and ID 
+const AWS = require ('aws-sdk')
+const keys = require ('../config/keys')
+const uuid = require ('uuid/v1') // to create unique names for image file name
+
+
+const s3 = new AWS.S3({
+accessKeyId:keys.accessKeyId,
+secretAccessKey:keys.secretAccessKey
+})
+
+
+module.exports = (app) =>{
+
+
+app.get('/api/upload' , requireLogin , (req,res)=>{
+
+const key = `${req.user.id}/${uuid()}.jpg`
+
+ s3.getSignedUrl('putObject' , {Bucket:'bucket name in amazon', ContentType:'image/jpeg'} ,Key:key)
+
+}, (err,url)=>res.send({key,url}))
+
+}
+
+front end:-
+
+submit(formData , this.state.file , history) => action creater
+
+export const submitBlog = (formData , values, history) => async dispatch =>{
+
+const uploadConfig = await axios.get('/api/upload')
+
+axios.put(uploadConfig.data.url , file , {header:{    // you will get a error bec u need to configure cors in aws and modify permission to allow put request as well for our localhost:3000
+Content-Type:file.type
+}
+})
+
+await axios.post('/api/blogs' , {...formData, imageUrl:uploadConfig.data.key})
+history.push('/blogs')
+
+
+}
+
+
+
+
+
+
+

@@ -1,0 +1,363 @@
+
+create a folder called test , for every section like header , footer , and main .. create a file like header.test.js ........... // file extension should be test.js to run test files
+------------------------------------------------------------------------------------
+package.json => install jest .. script => "test":"jest"
+// const pupperteer = require ('puppeteer') 
+
+// let browser;
+let page;
+
+
+
+test starts:-
+--------------------------
+header.test.js // file
+
+// const sessionFactory = require ('./sessionFactory.js') 
+// const userFactory = require ('./userFactory.js') 
+const Page = require ('./page')
+
+beforeEach(aysnc ()=>{
+// browser= await puppeteer.launch({headless:true})
+// page = await browser.newPage()
+page = await Page.build()	
+await page.goto('localhost:3000')
+})
+
+afterEach(async()=>{
+//await browser.close()
+await page.close()
+})
+
+
+testing1:-
+-------------
+test('header with correct test', async () =>{
+
+// const test = page.$eval('a.brand-logo', (data) => data.innerHTML)
+const test = await page.getContentsOf('a.brand-logo')
+expect(test).eqauls('Blogster')
+}
+
+testing2:-
+-------------
+test('click login with google oauth' , () =>{
+await page.click('.right a')
+const url = await page.url()
+expect(url).toMatch('/accounts\.google\.com/')
+})
+
+testing3:-
+-------------
+test.only('when signed in , test for login button' , ()=>{
+// const id = 'hhw434njsanr3uh43'  // mongoose ID which we set in req.user .. get the id from mongodb
+
+// const user = await userFactory()
+// const {session , sig } = sessionfactory(user)
+
+// await page.setCookie({name:'session'} , value:session) 
+// await page.setCookie({name:'session.sig' , value:sig }) // name differs for every website , for me bigproject it was express:sess.sig and express:sess
+// await page.goto('localhost:3000')
+// await page.waitFor('a [href="/auth/logout"]')
+
+await page.login()
+
+// const text = await page.$eval('a [href="/auth/logout"]' , el => el.innerHTML) // el means element
+const text = await page.getContentsOf('a [href="/auth/logout"]')
+expect(text).toEqual('Logout')
+})  // tutorial end's at 089
+
+--------------------------------------------------------
+testing4:- 
+
+new file --> blog.test.js
+const Page = require ('./helpers/page') 
+let page
+
+
+beforeEach(aysnc ()=>{
+// browser= await puppeteer.launch({headless:true})
+// page = await browser.newPage()
+page = await Page.build()	
+await page.goto('localhost:3000')
+})
+
+afterEach(async()=>{
+//await browser.close()
+await page.close()
+})
+
+
+
+
+describe('when logged in' , ()=>{
+
+beforeEach(async()=>{
+await Page.login()
+await page.click('a.btn-floating')
+})
+
+
+test('can see log create form' , async () =>{
+const label = await page.getContentsOf('form label')
+expect(label).toEqual('Blog Title')
+})
+
+
+ // below describe is nested inside another describe
+
+
+describe('using valid input', async()=>{
+
+beforeEach(async()=>{
+await page.type('.tittle input','My title')
+await page.type('.content input','My content')
+
+await page.click('form button')
+
+})
+
+
+
+test('submitting takes user to review screen' , async ()=>{
+const text = await page.getContentOf('h5')
+expect(text).toMatch('Please confirm the following entries')
+})
+
+
+
+
+test('Submitting then add's blog to index page', ()=>{
+await page.click('button.green')
+await page.waitFor('.card')
+
+const text = await page.getContentOf('.card-title')
+const content = await page.getContentOf('.p')
+
+expect(text).toMatch('My title')
+expect(content).toMatch('Mt content')
+})
+
+})
+
+
+
+
+ // below describe is nested inside another describe
+
+describe('using invalid input', async()=>{
+// if not field were entered in form
+beforeEach(async ()=>{
+await page.click('form button')
+})
+test('the forms shows a error message' , ()=>{
+
+const titleError = await page.getContentsOf('.form .red-text')
+const contentError = await page.getContentsOf('.form .content-text')
+
+expect(titleError).toEqual('You must provide a value')
+expect(contentError).toEqual('You must provide a value')
+})
+})
+
+}) 
+
+// cluster describe end's
+
+describe('when user not logged in' , async()=>{
+
+test('user cannot create blogs' ,async ()=>{
+
+const result =await page.evaluate(()=>{
+
+return fetch('/api/blogs', {
+method:'POST', credentials:'same-origin' , headers:{'Content-Type':'application/json'} , body:JSON.stringify({title:'my title' , content:'my content'} )
+}).then(res=>res.json())
+})
+
+
+console.log(result) // check we get error as 'you must login'
+expect(result).toEqual({error:'you must login'})
+
+})    // test1 ends
+
+
+test('user cannot get a list of post' , async()=>{
+ 
+const result =await page.evaluate(()=>{
+
+return fetch('/api/blogs', {
+method:'get', credentials:'same-origin' , headers:{'Content-Type':'application/json'} )
+}).then(res=>res.json())
+})
+
+
+console.log(result) // check we get error as 'you must login'
+expect(result).toEqual({error:'you must login'})
+
+})    // test2 ends
+
+})
+
+})
+
+
+--------------------------------------------------------
+
+
+
+
+
+as we are going to use authenticated route for testing , to avoid duplicate code create a factory function:-
+--------------------------------------------------------
+sessionfactory.js
+--------------------
+
+const Buffer = require ('safe-buffer').Buffer
+const Keygrip = require ('keygrip')
+const keys = require ('../config/keys.js')
+const keygrip = new Keygrip([keys.cookies])
+
+module.exports = (user) => {
+
+const sessionObject = {
+passport:{
+user:user.id.toString()
+}
+}
+
+const session = Buffer.from(JSON.stringify(sessionObject)).toString('base64')
+const sig = keygrip.sign('session=' + session)
+console.log(session , sig)  // idea here to fake session and session.sig which we saw in browser .. hence for session.sig we used buffer and keygrip , for session we used ID from database
+
+return {session , sig}
+}
+
+--------------------------------------------------------
+userFactory.js   // creates new user every time
+--------------------
+
+const mongoose = require ('mongoose')
+const User = mongoose.model('user') 
+
+module.exports = () =>{
+
+ return   new User({}).save()
+}
+
+--------------------------------------------------------
+page.js // create a file
+----------
+const puppeteer = require ('puppeteer')
+const sessionFactory = require ('./sessionFactory.js') 
+const userFactory = require ('./userFactory.js') 
+
+class CustomPage{
+
+static async build(){
+const browser = await puppeteer.launch({headless:false})
+const page = browser.newPage()
+const customPage = new CustomPage(page)
+
+return new Proxy(customPage , {
+get:function(target , property){
+return customPage[property] ||  browser[property] || page[property] 
+}
+})
+}
+
+constructor(page){
+this.page=page
+
+}
+
+async login(){
+
+const user = await userFactory()
+const {session , sig } = sessionfactory(user)
+
+await this.page.setCookie({name:'session'} , value:session) 
+await this.page.setCookie({name:'session.sig' , value:sig }) // name differs for every website , for me bigproject it was express:sess.sig and express:sess
+await this.page.goto('localhost:3000/blogs')
+await this.page.waitFor('a [href="/auth/logout"]')
+}
+
+async getContentsOf(selector){
+return  this.page.$eval(selector , el=>el.innerHTML)
+}
+
+
+
+}
+
+module.exports = CustomPage
+
+
+
+-----------------------------------------------------------------------------------------------------------------
+Below are notes to understand:-
+// inorder to fake the google oauth , we are going use the session which we get in response cookie network tab , callback?code=4/dsaf
+node => 
+const session = 'fjafwahuerhhrhrrwanfsa'
+const Buffer = require ('safe-buffer').Buffer
+Buffer.from(session , 'base64').toString('utf8')  // to make a human readble .. output {"passport":{"user":"bdshdbafshas"}}
+
+just like jwt , we have keyGrip with keyGrip.sign and keyGrip.verify
+const session = 'fjafwahuerhhrhrrwanfsa'
+const Keygrip = require ('keygrip')
+const keygrip = new Keygrip(['1234121']) // 123... will be a cookie key where we place in default.json (env variable)
+keygrip.sign('session=' + session)   //// 'bwrwbrhwreae'  // you will get a exact session where u saw in browser session.sig value
+keygrip.verify('session=' + session , 'bwrwbrhwreae') // answer is true and verified
+
+
+<ul className='right'>
+<li><a href=''></a></li>
+</ul>
+
+$('.right a')  // right is class so dot is required , it is a element no dot required , we can also use element.classname // parent classname is right and child element is a 
+$('span [title="venky"]') // span is a element with the attribute title ..
+$('a [href="/auth/logout"]').innerHTML   //  same element can be target like this
+$('form label'). innerHTML  // parent element is form and child element is label
+$('button') // for submit button querySelector .. to be bit precise ('form button')
+$('.tittle .red-text') // title class is parent , and red-text class is child .. to target red-text and be specific we use this method
+expect().toEqual()  /// this is called as assertion,
+// github -- GoogleChrome/puppeteer --> down scroll click puppeteer api
+page.waitForSelector('span [title="venky"]')
+https://github.com/GoogleChrome/puppeteer/blob/master/lib/Page.js
+tutorail number - 109 => TEST folder inside setup file below content => tutorial 094
+
+jest.seTimeOut(30000)
+require ('../models/user')
+
+const mongoose = require ('mongoose')
+const keys = require ('../config/keys') 
+mongoose.Promise = global.Promise
+mongoose.connect(keys.mongoURI, {useMongoclient: true })
+
+package.json -> before script object .. 
+"jest":{
+"setupTestFrameworkScriptFile":"./test/setup"
+}
+
+
+
+---------------------------------------------------------------------
+
+fetch('/api/blogs', {
+method:'POST', credentials:'same-origin' , headers:{'Content-Type':'application/json'} , body:JSON.stringify({title:'my title' , content:'my content'} )
+}
+)
+
+fetch('/api/blogs', {
+method:'get', credentials:'same-origin' , headers:{'Content-Type':'application/json'} )
+}
+)
+
+place request in browser console
+
+
+
+
+
+
+
